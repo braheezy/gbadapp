@@ -1,0 +1,21 @@
+.{
+    .name = .tonc_tutor,
+    .version = "0.0.0",
+    .fingerprint = 0x4230ec6734636149, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.14.1",
+    .dependencies = .{
+        .zigimg = .{
+            .url = "git+https://github.com/zigimg/zigimg.git#31bd433201d12d6aa700074d751a7db4555cdb0d",
+            .hash = "zigimg-0.1.0-8_eo2qClEgC8dTSiSO6vqGe7mdtIkobGi-Uc4d0Eo7_2",
+        },
+        .ziggba = .{
+            .url = "git+https://github.com/braheezy/ZigGBA.git#721c3572aa1777c2cfda9f7cc52549bfaa45c777",
+            .hash = "ziggba-0.0.0-t2qCXml4AQDTw-AElXMHZLT1-aV637m7ccoy9GlLPqh6",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
