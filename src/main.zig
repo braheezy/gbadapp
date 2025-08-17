@@ -3,7 +3,7 @@ const gba = @import("gba");
 const uncompressed_tiles = @import("assets/sequential/uncompressed_tiles.zig");
 
 // GBA header
-export var header linksection(".gbaheader") = gba.initHeader("UNCOMPRESS", "AFSE", "00", 0);
+export var header linksection(".gbaheader") = gba.initHeader("BADAPPLE", "AFSE", "00", 0);
 
 // Constants from uncompressed tiles
 const TILE_SIZE = uncompressed_tiles.TILE_SIZE;
@@ -13,16 +13,25 @@ const TILES_PER_FRAME = uncompressed_tiles.TILE_COUNT;
 const MAX_TILES = uncompressed_tiles.TILE_COUNT;
 const MAX_FRAMES = uncompressed_tiles.FRAME_COUNT;
 
-// Frame counter
+// Frame timing - target 30fps for smooth playback
+const FRAME_DURATION = 2; // 2 vsync cycles = 30fps (60/2)
+
+// Frame counter and timing
 var current_frame: u32 = 0;
 var frame_timer: u32 = 0;
+
+// Double buffering - two frame buffers
+var frame_buffer_a: [GRID_HEIGHT][GRID_WIDTH]u32 = undefined;
+var frame_buffer_b: [GRID_HEIGHT][GRID_WIDTH]u32 = undefined;
+var active_buffer: *[GRID_HEIGHT][GRID_WIDTH]u32 = &frame_buffer_a;
+var back_buffer: *[GRID_HEIGHT][GRID_WIDTH]u32 = &frame_buffer_b;
+
+// Previous frame for delta rendering optimization
+var prev_frame: [GRID_HEIGHT][GRID_WIDTH]u32 = undefined;
 
 // Tile data storage - loaded directly from embedded data
 var tile_data: [MAX_TILES][TILE_SIZE * TILE_SIZE]u8 = undefined;
 var tile_count: u32 = 0;
-
-// Tile map storage - loaded from embedded data
-var tile_maps: [MAX_FRAMES][GRID_HEIGHT][GRID_WIDTH]u32 = undefined;
 
 // Create a better 4-bit grayscale palette optimized for Bad Apple content
 const grayscale_palette: [16]u16 = .{
@@ -60,13 +69,13 @@ fn loadTiles() void {
     }
 }
 
-// Function to load tile map for a specific frame
+// Function to load tile map for a specific frame into the back buffer
 fn loadFrameTileMap(frame_id: u32) void {
     var y: u32 = 0;
     while (y < GRID_HEIGHT) : (y += 1) {
         var x: u32 = 0;
         while (x < GRID_WIDTH) : (x += 1) {
-            tile_maps[frame_id][y][x] = uncompressed_tiles.frame_tile_maps[frame_id][y][x];
+            back_buffer[y][x] = uncompressed_tiles.frame_tile_maps[frame_id][y][x];
         }
     }
 }
@@ -92,18 +101,44 @@ fn renderTile(tile_x: u32, tile_y: u32, tile_id: u32) void {
     }
 }
 
-// Function to render a complete frame
-fn renderFrame(frame_id: u32) void {
+// Function to render only changed tiles (delta rendering - FASTEST)
+fn renderFrameDelta() void {
     var tile_y: u32 = 0;
     while (tile_y < GRID_HEIGHT) : (tile_y += 1) {
         var tile_x: u32 = 0;
         while (tile_x < GRID_WIDTH) : (tile_x += 1) {
-            const tile_id = tile_maps[frame_id][tile_y][tile_x];
+            const new_tile_id = active_buffer[tile_y][tile_x];
+            const old_tile_id = prev_frame[tile_y][tile_x];
+
+            // Only render tiles that actually changed
+            if (new_tile_id != old_tile_id and new_tile_id < tile_count) {
+                renderTile(tile_x, tile_y, new_tile_id);
+                // Update previous frame buffer
+                prev_frame[tile_y][tile_x] = new_tile_id;
+            }
+        }
+    }
+}
+
+// Function to render a complete frame from the active buffer (fallback)
+fn renderFrame() void {
+    var tile_y: u32 = 0;
+    while (tile_y < GRID_HEIGHT) : (tile_y += 1) {
+        var tile_x: u32 = 0;
+        while (tile_x < GRID_WIDTH) : (tile_x += 1) {
+            const tile_id = active_buffer[tile_y][tile_x];
             if (tile_id < tile_count) {
                 renderTile(tile_x, tile_y, tile_id);
             }
         }
     }
+}
+
+// Function to swap buffers
+fn swapBuffers() void {
+    const temp = active_buffer;
+    active_buffer = back_buffer;
+    back_buffer = temp;
 }
 
 export fn main() void {
@@ -139,24 +174,45 @@ export fn main() void {
     // Load all tiles
     loadTiles();
 
-    // Load initial frame tile map
+    // Load initial frame into back buffer
     loadFrameTileMap(0);
+
+    // Swap buffers to make initial frame active
+    swapBuffers();
+
+    // Initialize previous frame buffer
+    var init_y: u32 = 0;
+    while (init_y < GRID_HEIGHT) : (init_y += 1) {
+        var init_x: u32 = 0;
+        while (init_x < GRID_WIDTH) : (init_x += 1) {
+            prev_frame[init_y][init_x] = active_buffer[init_y][init_x];
+        }
+    }
+
+    // Render initial frame
+    renderFrame();
 
     // Main loop
     while (true) {
         gba.display.vSync();
-
-        // Update frame counter every 8 frames (0.13 seconds at 60fps) - smooth animation
         frame_timer += 1;
-        if (frame_timer >= 8) {
+
+        // Only update frame content at target frame rate
+        if (frame_timer >= FRAME_DURATION) {
             frame_timer = 0;
+
+            // Move to next frame
             current_frame = (current_frame + 1) % MAX_FRAMES;
 
-            // Load new frame
+            // Load new frame into back buffer
             loadFrameTileMap(current_frame);
-        }
 
-        // Render the current frame every frame
-        renderFrame(current_frame);
+            // CRITICAL: Swap buffers FIRST, then render
+            // This eliminates the top-to-bottom drawing effect
+            swapBuffers();
+
+            // Use delta rendering for maximum performance
+            renderFrameDelta();
+        }
     }
 }
