@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # Extract frames
     frames_dir = "assets/simple_frames"
-    extract_frames_from_video(video_path, frames_dir, max_frames=50)
+    extract_frames_from_video(video_path, frames_dir, max_frames=120)
 
     # Generate Zig code
     output_file = "src/assets/simple_frames.zig"
