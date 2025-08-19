@@ -55,24 +55,22 @@ fn render_next_frame() void {
         frame_index = 0; // Loop back to start
     }
 
-    // Get the current frame data
-    const current_frame = frames.frame_data[frame_index];
-
-    // Render the frame pixel by pixel at 60fps
-    render_full_frame(current_frame);
+    // Get the current frame data and render it
+    const frame_data = frames.frame_data[frame_index];
+    render_full_frame(frame_data);
 
     frame_index += 1;
 }
 
-fn render_full_frame(frame_data: []const u8) void {
-    // Render frame pixel by pixel at 60fps
+fn render_full_frame(data: []const u8) void {
+    // Render full frame pixel by pixel
     var y: u8 = 0;
     while (y < 160) : (y += 1) {
         var x: u8 = 0;
         while (x < 240) : (x += 1) {
             const pixel_index = @as(usize, y) * 240 + @as(usize, x);
-            if (pixel_index < frame_data.len) {
-                const pixel_value = @as(u8, @intCast(frame_data[pixel_index]));
+            if (pixel_index < data.len) {
+                const pixel_value = @as(u8, @intCast(data[pixel_index]));
                 gba.bitmap.Mode4.setPixel(x, y, pixel_value);
             }
         }
