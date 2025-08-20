@@ -8,7 +8,7 @@ export var header linksection(".gbaheader") = gba.initHeader("BADAPPLE", "AFSE",
 // Global variables
 var frame_index: u16 = 0;
 var frame_timer: u16 = 0;
-var frame_delay: u16 = 2; // 2 VBlank cycle = 30fps
+var frame_delay: u16 = 2; // 2 VBlank cycles = 30 FPS (60 VBlank/s ÷ 30 FPS = 2)
 
 // Double buffering variables
 var current_page: u8 = 0; // 0 = front page, 1 = back page
@@ -38,11 +38,7 @@ export fn main() void {
     while (true) {
         gba.display.vSync();
 
-        frame_timer += 1;
-        if (frame_timer >= frame_delay) {
-            frame_timer = 0;
-            render_next_frame();
-        }
+        render_next_frame();
     }
 }
 
@@ -82,14 +78,9 @@ fn render_next_frame() void {
 }
 
 fn render_full_frame_to_vram(data: []const u8, vram_addr: u32) void {
-    // Cast VRAM address to a pointer and copy frame data directly
-    const vram_ptr = @as([*]volatile u8, @ptrFromInt(vram_addr));
-
-    // Copy frame data to VRAM (240x160 = 38,400 bytes)
-    const frame_size = @min(data.len, 240 * 160);
-    for (0..frame_size) |i| {
-        vram_ptr[i] = data[i];
-    }
+    // Use 32-bit aligned fast copy
+    const vram_ptr = @as([*]align(2) volatile u8, @ptrFromInt(vram_addr));
+    gba.mem.memcpy32(vram_ptr, @as([*]align(2) const u8, @ptrCast(@alignCast(data.ptr))), data.len);
 }
 
 fn clearVRAMPage(vram_addr: u32) void {

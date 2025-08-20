@@ -16,13 +16,8 @@ import numpy as np
 import os
 from pathlib import Path
 
-def extract_frames_from_video(video_path, output_dir, max_frames=10000):
-    """Extract frames from video and convert to simple format"""
-    if not os.path.exists(video_path):
-        print(f"Video file not found: {video_path}")
-        return
-
-    # Create output directory
+def extract_frames_from_video(video_path, output_dir, start_time=0.0, duration=30.0, target_fps=30):
+    """Extract frames from video and save as raw binary data"""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -30,17 +25,30 @@ def extract_frames_from_video(video_path, output_dir, max_frames=10000):
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    total_duration = total_frames / fps
 
-    print(f"Video: {total_frames} frames at {fps} fps")
-    print(f"Extracting {max_frames} frames...")
+    print(f"Video: {total_frames} frames at {fps:.2f} fps ({total_duration:.2f} seconds)")
+    print(f"Extracting: {start_time:.1f}s to {start_time + duration:.1f}s ({duration:.1f}s total)")
+    print(f"Target: {target_fps} FPS playback")
 
-    # Calculate frame step to get desired number of frames
-    step = max(1, total_frames // max_frames)
+    # Calculate frame range
+    start_frame = int(start_time * fps)
+    end_frame = int((start_time + duration) * fps)
+    frame_range = end_frame - start_frame
 
+    # For 30 FPS target, just extract frames directly with step 1
+    step = 1
+    actual_frames = frame_range
+
+    print(f"Frame range: {start_frame} to {end_frame} ({frame_range} frames)")
+    print(f"Will extract: {actual_frames} frames at {fps} FPS")
+    print(f"Playback: {actual_frames} frames ÷ {target_fps} FPS = {actual_frames/target_fps:.1f} seconds")
+
+    # Extract frames directly
     frame_count = 0
-    frame_index = 0
+    frame_index = start_frame
 
-    while frame_count < max_frames and frame_index < total_frames:
+    while frame_count < actual_frames and frame_index < end_frame:
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ret, frame = cap.read()
 
@@ -59,13 +67,15 @@ def extract_frames_from_video(video_path, output_dir, max_frames=10000):
             binary.astype(np.uint8).tofile(output_file)
 
             frame_count += 1
-            if frame_count % 50 == 0:
-                print(f"Processed {frame_count} frames...")
+            if frame_count % 100 == 0:
+                print(f"Extracted {frame_count} frames...")
 
         frame_index += step
 
     cap.release()
     print(f"Extracted {frame_count} frames to {output_dir}")
+    print(f"Quality: {fps} FPS source → {target_fps} FPS playback")
+    print(f"Playback: {frame_count} frames ÷ {target_fps} FPS = {frame_count/target_fps:.1f} seconds")
 
 def generate_zig_code(frames_dir, output_file):
     """Generate simple Zig code with frame data"""
@@ -107,12 +117,36 @@ if __name__ == "__main__":
         print("Please place the Bad Apple MP4 file in the project root directory.")
         exit(1)
 
+    # Clean up old frames to avoid confusion
+    import shutil
+    frames_dir = Path("assets/simple_frames")
+    if frames_dir.exists():
+        print("Cleaning up old frames...")
+        shutil.rmtree(frames_dir)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+
+    # Configuration - target: 30 FPS, first 30 seconds, real-time playback
+    START_TIME = 0.0      # Start at beginning of video
+    DURATION = 30.0       # Extract first 30 seconds (fits in GBA ROM)
+    TARGET_FPS = 30       # Target 30 FPS playback (matching source)
+
+    # For higher quality, reduce duration:
+    # DURATION = 15.0      # 15 seconds = higher quality
+    # DURATION = 10.0      # 10 seconds = even higher quality
+
     # Extract frames
     frames_dir = "assets/simple_frames"
-    extract_frames_from_video(video_path, frames_dir, max_frames=850)
+    extract_frames_from_video(
+        video_path,
+        frames_dir,
+        start_time=START_TIME,
+        duration=DURATION,
+        target_fps=TARGET_FPS
+    )
 
     # Generate Zig code
     output_file = "src/assets/simple_frames.zig"
     generate_zig_code(frames_dir, output_file)
 
-    print("Done! Now you can import 'simple_frames.zig' in your main.zig")
+    print("\n🎬 Frame extraction complete!")
+    print("📱 Now you can import 'simple_frames.zig' in your main.zig")
