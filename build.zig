@@ -6,6 +6,7 @@ pub fn build(b: *std.Build) void {
     const ziggba_dep = b.dependency("ziggba", .{});
     const gba_mod = ziggba_dep.module("gba");
 
+    // Build the original simple version (default)
     _ = ziggba.addGBAExecutable(
         b,
         gba_mod,
@@ -15,7 +16,7 @@ pub fn build(b: *std.Build) void {
 
     const mgba = b.addSystemCommand(&.{"/Applications/mGBA.app/Contents/MacOS/mGBA"});
     mgba.addFileArg(b.path("zig-out/bin/gbadapp.gba"));
-    const run_step = b.step("run", "Runs the program in mGBA");
+    const run_step = b.step("run", "Runs the simple version in mGBA");
     if (b.args) |args| {
         mgba.addArgs(args);
     }

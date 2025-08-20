@@ -16,7 +16,7 @@ import numpy as np
 import os
 from pathlib import Path
 
-def extract_frames_from_video(video_path, output_dir, max_frames=300):
+def extract_frames_from_video(video_path, output_dir, max_frames=10000):
     """Extract frames from video and convert to simple format"""
     if not os.path.exists(video_path):
         print(f"Video file not found: {video_path}")
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # Extract frames
     frames_dir = "assets/simple_frames"
-    extract_frames_from_video(video_path, frames_dir, max_frames=120)
+    extract_frames_from_video(video_path, frames_dir, max_frames=850)
 
     # Generate Zig code
     output_file = "src/assets/simple_frames.zig"

@@ -8,7 +8,16 @@ export var header linksection(".gbaheader") = gba.initHeader("BADAPPLE", "AFSE",
 // Global variables
 var frame_index: u16 = 0;
 var frame_timer: u16 = 0;
-var frame_delay: u16 = 1; // 1 VBlank cycle = 60fps
+var frame_delay: u16 = 2; // 2 VBlank cycle = 30fps
+
+// Double buffering variables
+var current_page: u8 = 0; // 0 = front page, 1 = back page
+var frame_ready: bool = false; // Whether the back page is ready to swap
+
+// VRAM page addresses for Mode 4
+const VRAM_PAGE_SIZE: u32 = 0x0A000; // 40,960 bytes per page
+const VRAM_FRONT: u32 = 0x06000000; // Front page
+const VRAM_BACK: u32 = 0x06000000 + VRAM_PAGE_SIZE; // Back page
 
 export fn main() void {
     // Initialize interrupts
@@ -21,8 +30,9 @@ export fn main() void {
     // Set up a simple black and white palette for Bad Apple
     setupPalette();
 
-    // Clear screen to black
-    gba.bitmap.Mode4.fill(0);
+    // Clear both VRAM pages to black
+    clearVRAMPage(VRAM_FRONT);
+    clearVRAMPage(VRAM_BACK);
 
     // Main loop
     while (true) {
@@ -37,7 +47,13 @@ export fn main() void {
 }
 
 fn vblank_handler() void {
-    // VBlank processing if needed
+    // Swap pages during VBlank if frame is ready
+    if (frame_ready) {
+        // Switch to the back page
+        gba.display.ctrl.*.page_select = if (current_page == 0) 1 else 0;
+        current_page = if (current_page == 0) 1 else 0;
+        frame_ready = false;
+    }
 }
 
 fn setupPalette() void {
@@ -55,24 +71,37 @@ fn render_next_frame() void {
         frame_index = 0; // Loop back to start
     }
 
-    // Get the current frame data and render it
+    // Get the current frame data and render it to the back page
     const frame_data = frames.frame_data[frame_index];
-    render_full_frame(frame_data);
+    const target_page = if (current_page == 0) VRAM_BACK else VRAM_FRONT;
+    render_full_frame_to_vram(frame_data, target_page);
 
+    // Mark frame as ready for next VBlank
+    frame_ready = true;
     frame_index += 1;
 }
 
-fn render_full_frame(data: []const u8) void {
-    // Render full frame pixel by pixel
-    var y: u8 = 0;
-    while (y < 160) : (y += 1) {
-        var x: u8 = 0;
-        while (x < 240) : (x += 1) {
-            const pixel_index = @as(usize, y) * 240 + @as(usize, x);
-            if (pixel_index < data.len) {
-                const pixel_value = @as(u8, @intCast(data[pixel_index]));
-                gba.bitmap.Mode4.setPixel(x, y, pixel_value);
-            }
-        }
+fn render_full_frame_to_vram(data: []const u8, vram_addr: u32) void {
+    // Cast VRAM address to a pointer and copy frame data directly
+    const vram_ptr = @as([*]volatile u8, @ptrFromInt(vram_addr));
+
+    // Copy frame data to VRAM (240x160 = 38,400 bytes)
+    const frame_size = @min(data.len, 240 * 160);
+    for (0..frame_size) |i| {
+        vram_ptr[i] = data[i];
     }
+}
+
+fn clearVRAMPage(vram_addr: u32) void {
+    // Clear VRAM page to black (0)
+    const vram_ptr = @as([*]volatile u8, @ptrFromInt(vram_addr));
+    for (0..VRAM_PAGE_SIZE) |i| {
+        vram_ptr[i] = 0;
+    }
+}
+
+// Legacy function for compatibility (now renders to current page)
+fn render_full_frame(data: []const u8) void {
+    const current_vram = if (current_page == 0) VRAM_FRONT else VRAM_BACK;
+    render_full_frame_to_vram(data, current_vram);
 }
