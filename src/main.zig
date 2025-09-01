@@ -1,18 +1,22 @@
 const std = @import("std");
 const gba = @import("gba");
+const mm = @import("maxmod");
+
 const frames = @import("assets/simple_frames.zig");
+var bank_data: []const u8 = @embedFile("assets/soundbank.bin");
 
 // GBA header
 export var header linksection(".gbaheader") = gba.initHeader("BADAPPLE", "AFSE", "00", 0);
 
 // Global variables
 var frame_index: u16 = 0;
-var frame_timer: u16 = 0;
-var frame_delay: u16 = 2; // 2 VBlank cycles = 30 FPS (60 VBlank/s ÷ 30 FPS = 2)
 
 // Double buffering variables
 var current_page: u8 = 0; // 0 = front page, 1 = back page
 var frame_ready: bool = false; // Whether the back page is ready to swap
+
+// 30fps timing variables
+var vblank_count: u16 = 0; // Count VBlanks to control frame rate
 
 // VRAM page addresses for Mode 4
 const VRAM_PAGE_SIZE: u32 = 0x0A000; // 40,960 bytes per page
@@ -34,11 +38,20 @@ export fn main() void {
     clearVRAMPage(VRAM_FRONT);
     clearVRAMPage(VRAM_BACK);
 
+    _ = mm.gba.mmInitDefault(@ptrCast(@constCast(&bank_data[0])), 32);
+
+    mm.mas.mmStart(0, 0);
+
     // Main loop
     while (true) {
+        vblank_count += 1;
+        if (vblank_count % 16 == 0) {
+            render_next_frame();
+        }
+
         gba.display.vSync();
 
-        render_next_frame();
+        mm.mas.mmFrame();
     }
 }
 
@@ -50,6 +63,7 @@ fn vblank_handler() void {
         current_page = if (current_page == 0) 1 else 0;
         frame_ready = false;
     }
+    mm.mixer.mmVBlank();
 }
 
 fn setupPalette() void {
@@ -74,7 +88,7 @@ fn render_next_frame() void {
 
     // Mark frame as ready for next VBlank
     frame_ready = true;
-    frame_index += 1;
+    frame_index += 3; // Skip 2 frames to create choppy 10fps motion from 30fps data
 }
 
 fn render_full_frame_to_vram(data: []const u8, vram_addr: u32) void {

@@ -4,10 +4,10 @@
     .fingerprint = 0xb0789430aea1ee0b, // Changing this has security and trust implications.
     .minimum_zig_version = "0.14.1",
     .dependencies = .{
-        .zigimg = .{
-            .url = "git+https://github.com/zigimg/zigimg.git#31bd433201d12d6aa700074d751a7db4555cdb0d",
-            .hash = "zigimg-0.1.0-8_eo2qClEgC8dTSiSO6vqGe7mdtIkobGi-Uc4d0Eo7_2",
-        },
+        // .zigimg = .{
+        //     .url = "git+https://github.com/zigimg/zigimg.git#31bd433201d12d6aa700074d751a7db4555cdb0d",
+        //     .hash = "zigimg-0.1.0-8_eo2qClEgC8dTSiSO6vqGe7mdtIkobGi-Uc4d0Eo7_2",
+        // },
 
         .ziggba = .{ .path = "../my-ZigGBA" },
 
@@ -15,6 +15,20 @@
         //     .url = "git+https://github.com/braheezy/ZigGBA.git#13fd985c13881a46d0b2fd8c54c9ff8a45eef798",
         //     .hash = "ziggba-0.0.0-t2qCXqEFBACiS7kFT28YBRkvZWo6JsZ2HEGRRcn1Poqc",
         // },
+        // .ziggba = .{
+        //     .url = "git+https://github.com/pineapplemachine/ziggba#3704cfd85677374b2bcc5263057d12b03491c9d7",
+        //     .hash = "ziggba-0.0.0-t2qCXvLDBgAOHtcuYsOkjg-T5I7ShgjIKPmUZSUtp5xb",
+        // },
+        .maxmod_zig = .{
+            // .url = "git+https://github.com/braheezy/maxmod-zig.git#f6f9bb92b1672a18c0cbb15ea603593b8c1a8f21",
+            // .hash = "maxmod_zig-0.0.0-QJRpsSOtDACznzM0AdDe0ceSb5u_FQeAELnfFAgu2Mrc",
+            .path = "../maxmod-zig",
+        },
+        .mmutil_zig = .{
+            // .url = "git+https://github.com/braheezy/mmutil-zig.git#b848d051610cc284bcdf9ee866a02e54847ec6d6",
+            // .hash = "mmutil_zig-0.0.0-y590hfcIAABINhM99GuWCzpmhKmqy2jqF8-xbpGVzojN",
+            .path = "../mmutil-zig",
+        },
     },
     .paths = .{
         "build.zig",

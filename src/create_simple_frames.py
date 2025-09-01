@@ -36,9 +36,23 @@ def extract_frames_from_video(video_path, output_dir, start_time=0.0, duration=3
     end_frame = int((start_time + duration) * fps)
     frame_range = end_frame - start_frame
 
-    # For 30 FPS target, just extract frames directly with step 1
-    step = 1
-    actual_frames = frame_range
+    # Calculate step size based on source FPS vs target FPS
+    if fps > target_fps:
+        step = int(fps / target_fps)  # Skip frames to match target FPS
+        actual_frames = frame_range // step
+    else:
+        # If source FPS <= target FPS, we need to extract fewer frames
+        # to maintain the same duration
+        step = 1
+        actual_frames = int((duration * target_fps))  # Extract frames for target FPS duration
+
+    # For 30fps source to 10fps target, extract frames at 10fps rate
+    if fps == 30 and target_fps == 10:
+        step = int(fps / target_fps)  # 30 / 10 = 3, extract every 3rd frame
+        actual_frames = int((duration * target_fps))  # 30 seconds * 10fps = 300 frames
+
+
+
 
     print(f"Frame range: {start_frame} to {end_frame} ({frame_range} frames)")
     print(f"Will extract: {actual_frames} frames at {fps} FPS")
@@ -125,10 +139,10 @@ if __name__ == "__main__":
         shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    # Configuration - target: 30 FPS, first 30 seconds, real-time playback
+    # Configuration - target: 10 FPS, first 30 seconds, real-time playback
     START_TIME = 0.0      # Start at beginning of video
     DURATION = 30.0       # Extract first 30 seconds (fits in GBA ROM)
-    TARGET_FPS = 30       # Target 30 FPS playback (matching source)
+    TARGET_FPS = 10       # Target 10 FPS playback (reduced for audio performance)
 
     # For higher quality, reduce duration:
     # DURATION = 15.0      # 15 seconds = higher quality
