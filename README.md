@@ -2,6 +2,8 @@
 
 GBA bad apple. Small demo that plays some of the Bad Apple!! video with full audio.
 
+https://github.com/user-attachments/assets/07064b3f-e07c-4df3-8619-1b0dd25d59e4
+
 ## Features
 
 - 40 seconds of Bad Apple video at 20fps (240x160 resolution)
