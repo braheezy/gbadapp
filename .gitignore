@@ -1,2 +1,5 @@
 my-ZigGBA
 assets
+debug_*.png
+debug_*.raw
+zig-out/

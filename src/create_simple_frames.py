@@ -1,23 +1,21 @@
 #!/usr/bin/env -S uv run
 # /// script
-# dependencies = [
-#   "opencv-python",
-#   "numpy",
-# ]
+# dependencies = ["opencv-python", "numpy"]
 # ///
 
 """
-Create simple frame data for GBA Bad Apple player
-Just stores full frames in a simple format
+Simple frame extraction for Bad Apple demo
+Extracts video frames at target FPS and saves as raw binary data
 """
 
 import cv2
 import numpy as np
-import os
 from pathlib import Path
+import shutil
 
-def extract_frames_from_video(video_path, output_dir, start_time=0.0, duration=30.0, target_fps=30):
-    """Extract frames from video and save as raw binary data"""
+
+def extract_frames_from_video(video_path, output_dir, start_time=0.0, duration=40.0, target_fps=20):
+    """Extract frames from video at target FPS and save as raw binary data"""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -31,122 +29,92 @@ def extract_frames_from_video(video_path, output_dir, start_time=0.0, duration=3
     print(f"Extracting: {start_time:.1f}s to {start_time + duration:.1f}s ({duration:.1f}s total)")
     print(f"Target: {target_fps} FPS playback")
 
-    # Calculate frame range
     start_frame = int(start_time * fps)
     end_frame = int((start_time + duration) * fps)
     frame_range = end_frame - start_frame
-
-    # Calculate step size based on source FPS vs target FPS
-    if fps > target_fps:
-        step = int(fps / target_fps)  # Skip frames to match target FPS
-        actual_frames = frame_range // step
-    else:
-        # If source FPS <= target FPS, we need to extract fewer frames
-        # to maintain the same duration
-        step = 1
-        actual_frames = int((duration * target_fps))  # Extract frames for target FPS duration
-
-    # For 30fps source to 10fps target, extract frames at 10fps rate
-    if fps == 30 and target_fps == 10:
-        step = int(fps / target_fps)  # 30 / 10 = 3, extract every 3rd frame
-        actual_frames = int((duration * target_fps))  # 30 seconds * 10fps = 300 frames
-
-
-
+    target_frame_count = int(duration * target_fps)
 
     print(f"Frame range: {start_frame} to {end_frame} ({frame_range} frames)")
-    print(f"Will extract: {actual_frames} frames at {fps} FPS")
-    print(f"Playback: {actual_frames} frames ÷ {target_fps} FPS = {actual_frames/target_fps:.1f} seconds")
+    print(f"Will extract: {target_frame_count} frames at {fps:.1f} FPS")
+    print(f"Playback: {target_frame_count} frames ÷ {target_fps} FPS = {target_frame_count/target_fps:.1f} seconds")
 
-    # Extract frames directly
     frame_count = 0
-    frame_index = start_frame
 
-    while frame_count < actual_frames and frame_index < end_frame:
+    for i in range(target_frame_count):
+        source_frame_pos = start_frame + (i * frame_range / target_frame_count)
+        frame_index = int(source_frame_pos)
+
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ret, frame = cap.read()
 
         if ret:
-            # Convert to grayscale
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-            # Resize to GBA resolution (240x160)
             resized = cv2.resize(gray, (240, 160))
-
-            # Convert to binary (black/white) using threshold
             _, binary = cv2.threshold(resized, 128, 1, cv2.THRESH_BINARY)
 
-            # Save as raw binary data
             output_file = output_dir / f"frame_{frame_count:04d}.raw"
             binary.astype(np.uint8).tofile(output_file)
-
             frame_count += 1
+
             if frame_count % 100 == 0:
                 print(f"Extracted {frame_count} frames...")
 
-        frame_index += step
-
     cap.release()
     print(f"Extracted {frame_count} frames to {output_dir}")
-    print(f"Quality: {fps} FPS source → {target_fps} FPS playback")
+    print(f"Quality: {fps:.1f} FPS source → {target_fps} FPS playback")
     print(f"Playback: {frame_count} frames ÷ {target_fps} FPS = {frame_count/target_fps:.1f} seconds")
 
+
 def generate_zig_code(frames_dir, output_file):
-    """Generate simple Zig code with frame data"""
+    """Generate Zig code for all frame data"""
     frames_dir = Path(frames_dir)
-    frame_files = sorted(list(frames_dir.glob("frame_*.raw")))
+    output_file = Path(output_file)
+
+    frame_files = sorted(frames_dir.glob("frame_*.raw"))
 
     if not frame_files:
         print("No frame files found!")
         return
 
-    print(f"Generating Zig code for {len(frame_files)} frames...")
+    # Generate Zig source code
+    with open(output_file, "w") as f:
+        f.write("// Auto-generated frame data for Bad Apple demo\n")
+        f.write("// Contains binary frame data as byte arrays\n\n")
 
-    with open(output_file, 'w') as f:
-        f.write("// Auto-generated frame data for Bad Apple video player\n")
-        f.write("// Simple full frame format\n\n")
-        f.write(f"pub const FRAME_COUNT = {len(frame_files)};\n")
-        f.write("pub const SCREEN_WIDTH = 240;\n")
-        f.write("pub const SCREEN_HEIGHT = 160;\n\n")
+        f.write("const std = @import(\"std\");\n\n")
 
-        f.write(f"pub const frame_data: [{len(frame_files)}][]const u8 = .{{\n")
+        # Write frame count constant
+        f.write(f"pub const FRAME_COUNT: u32 = {len(frame_files)};\n\n")
+
+        # Write frame data arrays
+        f.write("pub const frame_data = [_][]const u8{\n")
 
         for i, frame_file in enumerate(frame_files):
-            with open(frame_file, 'rb') as frame_f:
-                frame_data = frame_f.read()
+            with open(frame_file, "rb") as frame_f:
+                data = frame_f.read()
 
-            # Convert to Zig array format
-            hex_data = ', '.join([f"0x{b:02x}" for b in frame_data])
-            f.write(f"    &[_]u8{{ {hex_data} }}, // frame_{i:04d}\n")
+            hex_data = ", ".join(f"0x{b:02x}" for b in data)
+            f.write(f"    &[_]u8{{ {hex_data} }},\n")
 
         f.write("};\n")
 
-    print(f"Generated {output_file}")
+    print(f"Generated Zig code for {len(frame_files)} frames...")
+
+
+
 
 if __name__ == "__main__":
-    # Check if we have the MP4 file
-    video_path = "bad_apple.mp4"
-    if not os.path.exists(video_path):
-        print(f"Video file {video_path} not found!")
-        print("Please place the Bad Apple MP4 file in the project root directory.")
-        exit(1)
+    # Path to the Bad Apple video
+    video_path = "src/bad_apple.mp4"
 
-    # Clean up old frames to avoid confusion
-    import shutil
     frames_dir = Path("assets/simple_frames")
     if frames_dir.exists():
-        print("Cleaning up old frames...")
         shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    # Configuration - target: 10 FPS, first 30 seconds, real-time playback
-    START_TIME = 0.0      # Start at beginning of video
-    DURATION = 30.0       # Extract first 30 seconds (fits in GBA ROM)
-    TARGET_FPS = 10       # Target 10 FPS playback (reduced for audio performance)
-
-    # For higher quality, reduce duration:
-    # DURATION = 15.0      # 15 seconds = higher quality
-    # DURATION = 10.0      # 10 seconds = even higher quality
+    START_TIME = 0.0
+    DURATION = 40.0
+    TARGET_FPS = 20
 
     # Extract frames
     frames_dir = "assets/simple_frames"
@@ -162,5 +130,4 @@ if __name__ == "__main__":
     output_file = "src/assets/simple_frames.zig"
     generate_zig_code(frames_dir, output_file)
 
-    print("\n🎬 Frame extraction complete!")
-    print("📱 Now you can import 'simple_frames.zig' in your main.zig")
+    print("Frame extraction complete!")
