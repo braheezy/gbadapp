@@ -8,14 +8,15 @@ Simple frame extraction for Bad Apple demo
 Extracts video frames at target FPS and saves as raw binary data
 """
 
-import cv2
-import numpy as np
 from pathlib import Path
 import shutil
 
 
 def extract_frames_from_video(video_path, output_dir, start_time=0.0, duration=40.0, target_fps=20):
     """Extract frames from video at target FPS and save as raw binary data"""
+    import cv2
+    import numpy as np
+
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -81,20 +82,21 @@ def generate_zig_code(frames_dir, output_file):
         f.write("// Auto-generated frame data for Bad Apple demo\n")
         f.write("// Contains binary frame data as byte arrays\n\n")
 
-        f.write("const std = @import(\"std\");\n\n")
-
         # Write frame count constant
         f.write(f"pub const FRAME_COUNT: u32 = {len(frame_files)};\n\n")
 
-        # Write frame data arrays
-        f.write("pub const frame_data = [_][]const u8{\n")
-
+        # Write each frame as a named aligned object. The renderer uses DMA32,
+        # so the ROM source address must be 4-byte aligned.
         for i, frame_file in enumerate(frame_files):
             with open(frame_file, "rb") as frame_f:
                 data = frame_f.read()
 
             hex_data = ", ".join(f"0x{b:02x}" for b in data)
-            f.write(f"    &[_]u8{{ {hex_data} }},\n")
+            f.write(f"const frame_{i:04d} align(4) = [_]u8{{ {hex_data} }};\n")
+
+        f.write("\npub const frame_data = [_][]align(4) const u8{\n")
+        for i, _ in enumerate(frame_files):
+            f.write(f"    &frame_{i:04d},\n")
 
         f.write("};\n")
 
